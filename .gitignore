@@ -1,0 +1,7 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+# Dados dos containers (APPDATA_PATH e CACHE_PATH, padrão ./data)
+/data/

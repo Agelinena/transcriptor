@@ -1,0 +1,58 @@
+# Transcriptor — testes a cada push: os de unidade e os de integração, com um
+# Postgres de verdade migrado pelo dbmate (o mesmo do compose). Também
+# confere que as imagens da API e do proxy de saída montam.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  testes:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: test
+        ports: ["55432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TRANSCRIPTOR_TEST_DATABASE_URL: postgresql://postgres:test@127.0.0.1:55432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Dependências
+        run: |
+          python -m pip install --require-hashes --only-binary=:all: -r api/requirements.txt
+          python -m pip install pytest
+
+      - name: Migrações
+        run: |
+          docker run --rm --network host -v "$PWD/db:/db" ghcr.io/amacneil/dbmate:2 \
+            --url "postgres://postgres:test@127.0.0.1:55432/postgres?sslmode=disable" \
+            --no-dump-schema up
+
+      - name: Testes
+        run: python -m pytest tests -q
+
+  imagens:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: API
+        run: docker build -f api/Dockerfile -t transcriptor-api .
+      - name: Proxy de saída
+        run: docker build -t transcriptor-egress egress

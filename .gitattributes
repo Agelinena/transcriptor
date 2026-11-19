@@ -1,0 +1,3 @@
+# LF em tudo (scripts e Dockerfiles rodam no Linux).
+* text=auto eol=lf
+*.bat text eol=crlf
